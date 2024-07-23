@@ -66,4 +66,4 @@ if __name__ == '__main__':
     print("The method is LOSO")
     test(mode='test',method='LOSO',batch_size=288,model_path='model_weight/model_new_loso_63.19.pt')
     print("The method is LOSO with finetune")
-    test(mode='test',method='LOSO',batch_size=288,model_path='model_weight/model_new_losoft_73.9.pt')
+    test(mode='test',method='LOSO',batch_size=288,model_path='model_weight/model_new_losoft_80.pt')

@@ -100,11 +100,12 @@ def train(n_epochs ,models,lr,mode,method ,batch_size,model_path) :
 
 if __name__ == '__main__':
     model =  SCCNet()
-    loss1 =train(n_epochs=200 ,models=model,lr=0.001,mode='train',method='SD' ,batch_size=288,model_path='model_weight/model1.pt')
-    loss2 =train(n_epochs=200 ,models=model,lr=0.001,mode='train',method='LOSO' ,batch_size=288,model_path='model_weight/model2.pt')
-    model = torch.load('model_weight/model_new_loso_63.19.pt')
-    loss3 =train(n_epochs=200 ,models=model,lr=0.001,mode='train',method='SD' ,batch_size=288,model_path='model_weight/model3.pt')
+    train(n_epochs=200 ,models=model,lr=0.001,mode='train',method='SD' ,batch_size=288,model_path='model_weight/model.pt')
+    #train(n_epochs=200 ,models=model,lr=0.001,mode='train',method='LOSO' ,batch_size=288,model_path='model_weight/model2.pt')
+    #model = torch.load('model_weight/model_new_loso_63.19.pt')
+    #train(n_epochs=200 ,models=model,lr=0.001,mode='train',method='SD' ,batch_size=288,model_path='model_weight/model3.pt')
     
+    '''
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     plt.title('Training Loss Curve')
@@ -117,3 +118,4 @@ if __name__ == '__main__':
     plt.legend()
     plt.grid(True)
     plt.show()
+    '''
