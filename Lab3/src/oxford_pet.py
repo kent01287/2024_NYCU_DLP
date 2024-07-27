@@ -3,6 +3,7 @@ import torch
 import shutil
 import numpy as np
 import torchvision.transforms as transforms
+import random
 
 from PIL import Image
 from tqdm import tqdm
@@ -20,10 +21,11 @@ class OxfordPetDataset(torch.utils.data.Dataset): # type: ignore
         self.mode = mode
         self.transform = transform
 
-        self.images_directory = os.path.join(self.root, "images")
+        self.images_directory = os.path.join(self.root
+                                             , "images")
         self.masks_directory = os.path.join(self.root, "annotations", "trimaps")
 
-        self.filenames = self._read_split()  # read train/valid/test splits
+        self.filenames = self._read_split()  # read train/valid/test splits #test ["Abyssinian_201", "Abyssinian_202"]
 
     def __len__(self):
         return len(self.filenames)
@@ -39,29 +41,30 @@ class OxfordPetDataset(torch.utils.data.Dataset): # type: ignore
         trimap = np.array(Image.open(mask_path))
         mask = self._preprocess_mask(trimap)
 
-        sample = dict(image=image, mask=mask, trimap=trimap)
+        sample = dict(image=image, mask=mask)
         
         # Print before transformation
+        '''
         print("Before transformation:")
         print(f"Image: {sample['image'].shape}")
         print(f"Mask shape: {sample['mask'].shape}")
         print(f"Trimap shape: {sample['trimap'].shape}")
-        
+        '''
         if self.transform is not None:
-            print("doning")
+            #print("doning")
             sample = self.transform(**sample)
-            
+        '''
         # Print before transformation
         print("Before transformation:")
         print(f"Image: {sample['image'].shape}")
         print(f"Mask shape: {sample['mask'].shape}")
         print(f"Trimap shape: {sample['trimap'].shape}")
-
+        '''
         return sample
     '''
         "image" : 3-dim np array
-        "trimap" : 1-dim np array (1,2,3)
-        "mask" : 1-dim np array (0,1)
+        "trimap" : 1-dim np array value (1,2,3)
+        "mask" : 1-dim np array value (0,1)
     '''
     @staticmethod
     def _preprocess_mask(mask):
@@ -106,17 +109,18 @@ class SimpleOxfordPetDataset(OxfordPetDataset):
     def __getitem__(self, *args, **kwargs): #改寫parent getitem
 
         sample = super().__getitem__(*args, **kwargs) #dict
+        #這邊sample 改成包含image and mask的dic
         
-        print(f"Transform applied: {self.transform}")
+        #print(f"Transform applied: {self.transform}")
         # resize images
         image = np.array(Image.fromarray(sample["image"]).resize((256, 256), Image.BILINEAR)) # type: ignore
         mask = np.array(Image.fromarray(sample["mask"]).resize((256, 256), Image.NEAREST)) # type: ignore
-        trimap = np.array(Image.fromarray(sample["trimap"]).resize((256, 256), Image.NEAREST)) # type: ignore
+        #trimap = np.array(Image.fromarray(sample["trimap"]).resize((256, 256), Image.NEAREST)) # type: ignore
 
         # convert to other format HWC -> CHW
         sample["image"] = np.moveaxis(image, -1, 0)
-        sample["mask"] = np.expand_dims(mask, 0) #(1,H,W)
-        sample["trimap"] = np.expand_dims(trimap, 0) #(1,H,W)
+        sample["mask"] = np.expand_dims(mask, 0).flatten() #(1,H,W)
+        #sample["trimap"] = np.expand_dims(trimap, 0) #(1,H,W)
 
         return sample
 
@@ -150,28 +154,47 @@ def extract_archive(filepath):
     dst_dir = os.path.splitext(filepath)[0]
     if not os.path.exists(dst_dir):
         shutil.unpack_archive(filepath, extract_dir)
-
+'''
 def trans(**sample):
-    transform=transforms.Compose([
-        # Resize the image into a fixed shape (height = width = 128)
-        transforms.Resize((256, 256)),
-        transforms.CenterCrop((3,3)),
-        transforms.RandomHorizontalFlip(p=0.5),
-        transforms.RandomRotation(30),
-        #transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]), #標準化處理
-    ])
+    
     #transfer to Image
-    img = Image.fromarray(sample["image"])
-    mask =Image.fromarray(sample["mask"])
-    trimap =Image.fromarray(sample["trimap"])
+    img = Image.fromarray(sample["image"]).resize((256, 256), Image.BILINEAR) # type: ignore
+    mask = Image.fromarray(sample["mask"]).resize((256, 256), Image.NEAREST) # type: ignore
+    
+    ###### rotation the picture ###############
+
+    rndn = np.random.random()
+    if rndn<0.15:
+        transform1=transforms.RandomHorizontalFlip(p=1)
+    elif rndn < 0.3:
+        transform1=transforms.RandomVerticalFlip(p=1)
+    elif rndn<0.45 :
+        transform1=transforms.RandomRotation([90,90])
+    elif rndn<0.6 :
+        transform1=transforms.RandomRotation([270,270])
+    else:
+        transform1=None
+    
     # do DA
-    trans_img = transform(img)
-    trans_mask=transform(mask) 
-    trans_trimap=transform(trimap)
+    if transform1 is not None:
+        img=transform1(img)
+        mask=transform1(mask) 
+        
+    ##########crop the image################
+    option=[transforms.CenterCrop(size=(200,200)),None]
+    
+    index = random.randint(0, len(option) - 1)
+    transform2=option[index]
+        
+    if transform2 is not None:
+        img=transform2(img)
+        mask=transform2(mask) 
+    
     # transfer to np
-    sample = dict(image= np.array(trans_img), mask= np.array(trans_mask),trimap= np.array(trans_trimap))
-    print("doing trans")
+    sample = dict(image= np.array(img), mask= np.array(mask))
+    #print("doing trans")
     return sample
+'''
 
 def load_dataset(data_path, mode):
     # implement the load dataset function here
@@ -179,14 +202,14 @@ def load_dataset(data_path, mode):
     if os.listdir(data_path) == []:
         OxfordPetDataset.download(data_path)
     if mode == 'train':
-        dataset = SimpleOxfordPetDataset(root=data_path, mode=mode,transform=trans)
-    
+        dataset = SimpleOxfordPetDataset(root=data_path, mode=mode,transform=None)
+    else:
+        dataset= SimpleOxfordPetDataset(root=data_path, mode=mode)
     return dataset
     assert False, "Not implemented yet!"
     
 
-    
-    print("Test passed!")
+
 if __name__ == '__main__':
     dataset=load_dataset("../dataset",mode='train')
     print(dataset[0])
