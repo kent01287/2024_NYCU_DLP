@@ -212,5 +212,5 @@ def load_dataset(data_path, mode):
 
 
 if __name__ == '__main__':
-    dataset=load_dataset("../dataset",mode='train')
+    dataset=load_dataset("../dataset/oxford-iiit-pet",mode='train')
     print(dataset[0])
