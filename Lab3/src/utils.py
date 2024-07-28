@@ -1,6 +1,10 @@
 import torch
 import matplotlib.pyplot as plt
 import numpy as np
+import torchvision.transforms as transforms
+import random
+
+from PIL import Image
 def dice_score(pred_mask, gt_mask):
     # implement the Dice score here
     pred_mask = (pred_mask > 0.5).float() # >0.5 ->1 <=0.5 ->0
@@ -70,6 +74,24 @@ def show_model_DA(np1,np2):
     plt.legend()
     plt.tight_layout()
     plt.show()
+    
+def show_DA (img):
+    # Load the image
+    img = Image.open(img)
+
+    # Rotate the image by a specified angle
+    rotated = img.rotate(180)
+
+    # Save the rotated image
+    #rotated.save('../img/rotated_image.jpg')
+    ##########crop the image################
+    option=[transforms.CenterCrop(size=(200,200))]
+    transform2=option[0]
+    if transform2 is not None:
+        img=transform2(img)
+    
+    img.save('../img/cropped.jpg')
+        
 if __name__ == "__main__":
     '''
     pred_mask = torch.tensor([[[0.9, 0.1, 0.8], [0.4, 0.6, 0.7]], [[0.2, 0.3, 0.1], [0.9, 0.8, 0.9]]], dtype=torch.float32)
@@ -83,5 +105,6 @@ if __name__ == "__main__":
     # plot the graph
     show_model_loss('../saved_models/Unet/losses_Unet.npy','../saved_models/ResNet34_Unet/losses_ResNet34_Unet.npy')
     show_model_Scroe('../saved_models/Unet/dice_scores_Unet.npy','../saved_models/ResNet34_Unet/dice_scores_ResNet34_Unet.npy')
-    show_model_DA('../saved_models/ResNet34_Unet/dice_scores_witoutDA_ResNet34_Unet.npy','../saved_models/ResNet34_Unet/dice_scores_ResNet34_Unet.npy')
-    show_model_DA('../saved_models/ResNet34_Unet/losses_witoutDA_ResNet34_Unet.npy','../saved_models/ResNet34_Unet/losses_ResNet34_Unet.npy')
+    
+    # show the grpah
+    #show_DA('../img/original_image.png')

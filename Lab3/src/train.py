@@ -89,7 +89,7 @@ def train(args,model,save_path):
     #os.makedirs(save_path, exist_ok=True)    
     
     
-    #torch.save(model.state_dict(), f"{save_path}/model.pth")
+    torch.save(model.state_dict(), f"{save_path}/model.pth")
     print(f'model save to {save_path}/{args.model}')
     #turn into numpy file to plot the graph
     np.save(f"{save_path}/{args.model}/losses_witoutDA_{args.model}.npy", losses)

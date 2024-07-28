@@ -29,11 +29,11 @@ def test(args):
     if(args.models=='Unet'):
         print("Using Unet")
         model = Unet(in_ch=3,out_ch=1).to(device)
-        model.load_state_dict(torch.load(args.model))
+        model.load_state_dict(torch.load(args.Unet))
     elif(args.models=='ResNet34_Unet'):
         print("Using ResNet34_Unet")
         model = ResNet34_UNet(in_ch=3,out_ch=1).to(device)
-        model.load_state_dict(torch.load(args.model))
+        model.load_state_dict(torch.load(args.ResNet34_Unet))
         
     model.eval()
     #load the test data 
@@ -161,8 +161,8 @@ def combine(pic1,pic2): # merge the two picture
    
 if __name__ == '__main__':
     args = get_args()
-    #test(args)
-    show(args)
-    combine('../img/original_image.png','../img/pred_image_Unet.png')
-    combine('../img/original_image.png','../img/pred_image_ResNet34_Unet.png')
+    test(args)
+    #show(args)
+    #combine('../img/original_image.png','../img/pred_image_Unet.png')
+    #combine('../img/original_image.png','../img/pred_image_ResNet34_Unet.png')
     #assert False, "Not implemented yet!"

@@ -154,7 +154,7 @@ def extract_archive(filepath):
     dst_dir = os.path.splitext(filepath)[0]
     if not os.path.exists(dst_dir):
         shutil.unpack_archive(filepath, extract_dir)
-'''
+
 def trans(**sample):
     
     #transfer to Image
@@ -194,15 +194,16 @@ def trans(**sample):
     sample = dict(image= np.array(img), mask= np.array(mask))
     #print("doing trans")
     return sample
-'''
+
 
 def load_dataset(data_path, mode):
     # implement the load dataset function here
      # Define data augmentation transformations
     if os.listdir(data_path) == []:
+        print("Downloading the graph")
         OxfordPetDataset.download(data_path)
     if mode == 'train':
-        dataset = SimpleOxfordPetDataset(root=data_path, mode=mode,transform=None)
+        dataset = SimpleOxfordPetDataset(root=data_path, mode=mode,transform=trans)
     else:
         dataset= SimpleOxfordPetDataset(root=data_path, mode=mode)
     return dataset
