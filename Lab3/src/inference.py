@@ -18,7 +18,8 @@ def get_args():
     parser.add_argument('--ResNet34_Unet', default='./saved_models/model_ResNet34_Unet_0.91.pth', help='ResNet34_Unet')
     parser.add_argument('--data_path', type=str, default='./dataset/oxford-iiit-pet',help='path to the input data')
     parser.add_argument('--batch_size', '-b', type=int, default=1, help='batch size')
-    parser.add_argument('--models',type=str, default="Unet",choices=['Unet','ResNet34_Unet'], help='Unet or ResNet34_Unet ')
+    parser.add_argument('--model_path',type=str, default="./saved_models/model_Unet0.91pth", help='The model path ')
+    parser.add_argument('--model',type=str, default="UNet",choices=['UNet','ResNet34_UNet'], help='Unet or ResNet34_Unet ')
     return parser.parse_args()
 
 def test(args):
@@ -26,11 +27,11 @@ def test(args):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     
     #load the model
-    if(args.models=='Unet'):
+    if(args.model=='UNet'):
         print("Using Unet")
         model = Unet(in_ch=3,out_ch=1).to(device)
         model.load_state_dict(torch.load(args.Unet))
-    elif(args.models=='ResNet34_Unet'):
+    elif(args.model=='ResNet34_UNet'):
         print("Using ResNet34_Unet")
         model = ResNet34_UNet(in_ch=3,out_ch=1).to(device)
         model.load_state_dict(torch.load(args.ResNet34_Unet))
