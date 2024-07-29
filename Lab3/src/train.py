@@ -38,7 +38,7 @@ def train(args,model,save_path):
     
     
     # Define best scores
-    best_scores=1
+    best_scores=0
     for epoch in range(args.epochs):
         train_loss=0
         model.train()
@@ -83,24 +83,24 @@ def train(args,model,save_path):
         print(f"[ Train | {epoch + 1:03d}/{args.epochs:03d} ] loss = {train_loss:.5f},dice_score = {score:.2f}")
         if score>best_scores:
             best_scores=score
-            torch.save(model.state_dict(), f"{save_path}/{args.model}/model_{args.model}_{score:.2f}.pth")
-            print(f"Save the model with score{score:.2f}")
+            torch.save(model.state_dict(), f"{save_path}/model_{args.model}_{score:.2f}.pth")
+            print(f"Save the model with score{score:.2f},The destination is {save_path}")
     
     #os.makedirs(save_path, exist_ok=True)    
     
     
-    torch.save(model.state_dict(), f"{save_path}/model.pth")
-    print(f'model save to {save_path}/{args.model}')
+    #torch.save(model.state_dict(), f"{save_path}/model.pth")
+    #print(f'model save to {save_path}')
     #turn into numpy file to plot the graph
-    np.save(f"{save_path}/{args.model}/losses_witoutDA_{args.model}.npy", losses)
-    np.save(f"{save_path}/{args.model}/dice_scores_witoutDA_{args.model}.npy", dice_scores)    
+    #np.save(f"{save_path}/{args.model}/losses_witoutDA_{args.model}.npy", losses)
+    #np.save(f"{save_path}/{args.model}/dice_scores_witoutDA_{args.model}.npy", dice_scores)    
     #assert False, "Not implemented yet!"
 
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train the UNet on images and target masks')
-    parser.add_argument('--data_path',  default= '../dataset',type=str, help='path of the input data')
-    parser.add_argument('--epochs', '-e',type=int, default=25, help='number of epochs')
+    parser.add_argument('--data_path',  default= './dataset/oxford-iiit-pet',type=str, help='path of the input data')
+    parser.add_argument('--epochs', '-e',type=int, default=1, help='number of epochs')
     parser.add_argument('--batch_size', '-b',type=int, default=16, help='batch size')
     parser.add_argument('--learning-rate', '-lr',type=float, default=1e-4, help='learning rate')
     parser.add_argument('--model',type=str, default="Unet",choices=['Unet', 'ResNet34_Unet'], help='Unet or ResNet34_Unet ')
@@ -118,4 +118,4 @@ if __name__ == "__main__":
     elif(args.model=="ResNet34_Unet"):
         print("Training ResNet34_UNet")
         model=ResNet34_UNet(in_ch=3,out_ch=1)
-    train(args,model=model,save_path='../saved_models')
+    train(args,model=model,save_path='./saved_models')

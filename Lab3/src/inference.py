@@ -11,14 +11,14 @@ from oxford_pet import load_dataset
 from torch.utils.data import  DataLoader
 from utils import dice_score
 
+
 def get_args():
     parser = argparse.ArgumentParser(description='Predict masks from input images')
-    parser.add_argument('--model', default='../saved_models/ResNet34_Unet/model_ResNet34_Unet_0.91.pth', help='path to the stored model weoght')
-    parser.add_argument('--Unet', default='../saved_models/Unet/model_Unet_0.91.pth', help='Unet')
-    parser.add_argument('--ResNet34_Unet', default='../saved_models/ResNet34_Unet/model_ResNet34_Unet_0.91.pth', help='ResNet34_Unet')
-    parser.add_argument('--data_path', type=str, default='../dataset',help='path to the input data')
+    parser.add_argument('--Unet', default='./saved_models/model_Unet_0.91.pth', help='Unet')
+    parser.add_argument('--ResNet34_Unet', default='./saved_models/model_ResNet34_Unet_0.91.pth', help='ResNet34_Unet')
+    parser.add_argument('--data_path', type=str, default='./dataset/oxford-iiit-pet',help='path to the input data')
     parser.add_argument('--batch_size', '-b', type=int, default=1, help='batch size')
-    parser.add_argument('--models',type=str, default="ResNet34_Unet",choices=['Unet','ResNet34_Unet'], help='Unet or ResNet34_Unet ')
+    parser.add_argument('--models',type=str, default="Unet",choices=['Unet','ResNet34_Unet'], help='Unet or ResNet34_Unet ')
     return parser.parse_args()
 
 def test(args):
