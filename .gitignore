@@ -1,3 +1,4 @@
 .vscode
-./Lab3/dataset/
-./Lab4/test_img
+Lab3/dataset
+__pycache__
+Lab4/LAB4_Dataset
