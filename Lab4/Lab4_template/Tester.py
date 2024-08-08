@@ -129,24 +129,22 @@ class Test_model(VAE_Model):
         decoded_frame_list = [img[0].cpu()]
         label_list = []
         PSNR_total=0
-        img_out=self.frame_transformation(img[0]) #只有一維
-        out=img[0]
+        pred=img[0]
         for i in range(1,self.val_vi_len): #處理dataset裡面的一個data 因為包含多個時間序列 (630)
     
-            
+            img_out=self.frame_transformation(pred) 
             label_out=self.label_transformation(label[i])
             
             #pass encoder
-            #z,mu,logvar = self.Gaussian_Predictor(img_out,label_out)
+
             z = torch.cuda.FloatTensor(1, self.args.N_dim, self.args.frame_H, self.args.frame_W).normal_()#從normal distribtion smaple一個出來
+            
+            
             param=self.Decoder_Fusion(img_out,label_out,z)
-    
-            out = self.Generator(param)
+            pred = self.Generator(param)
             
-            #PSNR= Generate_PSNR(out,img[i])
-            #PSNR_total+=PSNR
             
-            decoded_frame_list.append(out.cpu())
+            decoded_frame_list.append(pred.cpu())
             label_list.append(label[i].cpu())
             
         
@@ -217,7 +215,7 @@ if __name__ == '__main__':
     parser.add_argument('--test',          action='store_true')
     parser.add_argument('--make_gif',      action='store_true')
     parser.add_argument('--DR',            type=str, default='./Lab4/LAB4_Dataset/LAB4_Dataset',  help="Your Dataset Path")
-    parser.add_argument('--save_root',     type=str, default='./Lab4/img',  help="The path to save your data")
+    parser.add_argument('--save_root',     type=str, default='./Lab4/img/epoch=61',  help="The path to save your data")
     parser.add_argument('--num_workers',   type=int, default=4)
     parser.add_argument('--num_epoch',     type=int, default=70,     help="number of total epoch")
     parser.add_argument('--per_save',      type=int, default=3,      help="Save checkpoint every seted epoch")
@@ -238,7 +236,7 @@ if __name__ == '__main__':
     parser.add_argument('--tfr',           type=float, default=1.0,  help="The initial teacher forcing ratio")
     parser.add_argument('--tfr_sde',       type=int,   default=10,   help="The epoch that teacher forcing ratio start to decay")
     parser.add_argument('--tfr_d_step',    type=float, default=0.1,  help="Decay step that teacher forcing ratio adopted")
-    parser.add_argument('--ckpt_path',     type=str,    default="./Lab4/model/epoch=108.ckpt",help="The path of your checkpoints")   
+    parser.add_argument('--ckpt_path',     type=str,    default="./Lab4/model/epoch===61.ckpt",help="The path of your checkpoints")   
     
     # Training Strategy
     parser.add_argument('--fast_train',         action='store_true')

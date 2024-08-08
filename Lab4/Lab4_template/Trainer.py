@@ -3,6 +3,8 @@ import argparse
 import numpy as np
 import torch
 import torch.nn as nn
+from matplotlib.ticker import LogLocator, LogFormatter
+
 from torchvision import transforms
 from torch.utils.data import DataLoader
 
@@ -51,7 +53,11 @@ def kl_criterion(mu, logvar, batch_size):
   return KLD
 
 #KL (Kullback-Leibler) annealing 
-# 是一種在訓練VAE時，逐步增大KL散度項權重的方法。其目的是為了平衡Reconstruction loss和KL divergence之間的權重，
+# 在 VAE 訓練的過程中，為了最大化 reconstruction term 並最小化 KL-divergence term，
+# 很容易造成 KL-vanishing (posterior collapse) 的問題，這會使得 latent space distribution 
+# 直接與輸入 x 無關(因為最小化 KL-divergence 只需使得 posterior = prior)，也這會使得我們的 decoder 
+# 能力放大而不需仰賴 latent space distribution。因此為解決這項問題，需要使用 KL-annealing 
+# 循環或線性的調整 KL-divergence term 的係數，保證模型有多一點的時間學習輸入 x 的資訊到 latent space distribution 中。
 #lower bound = reconstruction loss + KL (q(z|x)||p(z))
 #L=Reconstruction Loss+β⋅KL Divergence
 #KL annealing 的過程可以理解為逐步增大β的值，使得模型在訓練初期更注重Reconstruction loss，
@@ -65,30 +71,30 @@ class kl_annealing():
         self.total_epoch = args.num_epoch
         if self.type== 'None':
             self.beta=1.0
-        else:
-            self.beta=0.0
+        else: #Monotonic cyclic
+            self.beta=0.0 
         #raise NotImplementedError
         
     def update(self):
         # TODO
         self.current_epoch+=1
-        #self.frange_cycle_linear(n_iter = self.total_epoch,n_cycle=self.cycle , ratio=self.ratio)
-        
-        self.frange_cycle_linear(n_iter = self.current_epoch,n_cycle=self.cycle , ratio=self.ratio)
-        #raise NotImplementedError
+        self.frange_cycle_linear(n_iter = self.current_epoch,n_cycle=self.cycle , ratio=1)
     
     def get_beta(self):
         return self.beta
     
     def frange_cycle_linear(self, n_iter, start=0.0, stop=1.0,  n_cycle=10, ratio=1):
-        tmp = 0
-        tmp = ((n_iter % n_cycle) / n_cycle) * ratio #mapping 到 0 1 之間
-        if(tmp <= stop-0.1):
-            self.beta = tmp
-        else:
+        
+        step = 0
+        n_pos= n_iter % n_cycle
+        step = (n_pos/n_cycle)*ratio #mapping到0~1 代表step
+        if(step <= stop):
+            self.beta = step
+        else: #設為1
             self.beta = stop        
-            
-        if(self.type=='Monotonic' and self.n_iter>=n_cycle): #若monotonic 後期一直設為1
+        
+        
+        if(self.type=='Monotonic' and n_iter>=n_cycle): #若monotonic 後期一直設為1
             self.beta=stop
         
         
@@ -110,12 +116,24 @@ class VAE_Model(nn.Module):
         
         # Generative model
         self.Generator            = Generator(input_nc=args.D_out_dim, output_nc=3)
+        self.current_epoch = 0
+        self.optim = optim.Adam(self.parameters(), lr=self.args.lr, weight_decay=1e-5)
+        #self.optim = optim.SGD(self.parameters(), lr=self.args.lr)
         
-        self.optim      = optim.Adam(self.parameters(), lr=self.args.lr)
-        self.scheduler  = optim.lr_scheduler.MultiStepLR(self.optim, milestones=[2, 5], gamma=0.1)
+        if self.current_epoch <=200:
+            print("using Adam")
+            self.optim = optim.Adam(self.parameters(), lr=self.args.lr, weight_decay=1e-5)
+        else:
+            print("using SGD")
+            self.optim = optim.SGD(self.parameters(), lr=self.args.lr, weight_decay=1e-5)
+            
+        self.scheduler  = optim.lr_scheduler.MultiStepLR(self.optim, milestones=[2,5], gamma=0.1) #在第二輪以及第五輪被乘以0.1
         self.kl_annealing = kl_annealing(args, current_epoch=0)
         self.mse_criterion = nn.MSELoss()
-        self.current_epoch = 0
+        
+        
+        
+    
         
         # Teacher forcing arguments
         self.tfr = args.tfr
@@ -137,15 +155,22 @@ class VAE_Model(nn.Module):
         tfr_list=[] 
         kl_list=[]
         print(args.num_epoch)
-        
+        best_score=31
+        ewma_psnr = 0
         for i in range(self.args.num_epoch):
             train_loader = self.train_dataloader()
             adapt_TeacherForcing = True if random.random() < self.tfr else False #是否使用Teacher forcing
+            #adapt_TeacherForcing=False
             epoch_loss=0
             for (img, label) in (pbar := tqdm(train_loader, ncols=120)):
                 img = img.to(self.args.device)
                 label = label.to(self.args.device)
                 loss = self.training_one_step(img, label, adapt_TeacherForcing) #reconstruction loss + KL divergence
+                
+                if torch.isnan(loss):
+                    print("Loss is nan")
+                    return ewma_psnr
+                
                 epoch_loss+=loss.item()
                 beta = self.kl_annealing.get_beta()
                 if adapt_TeacherForcing:
@@ -155,11 +180,21 @@ class VAE_Model(nn.Module):
                     self.tqdm_bar('train [TeacherForcing: OFF, {:.1f}], beta: {}'.format(self.tfr, beta), pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0])
 
             #每隔一定的 epoch（self.args.per_save）保存一次模型的檢查點到指定的路徑
+            '''
             if self.current_epoch % self.args.per_save == 0:
                 self.save(os.path.join(self.args.save_root, f"epoch={self.current_epoch}.ckpt"))
+            '''    
+
+            
+            val_loss,PSNR ,psnr_frame= self.eval()
+            
+            if i != 0:
+                ewma_psnr = 0.99 * ewma_psnr + 0.01 * PSNR.numpy()
                 
-                
-            val_loss,PSNR = self.eval()
+            if PSNR > best_score :
+                self.save(os.path.join(self.args.save_root, f"epoch==={self.current_epoch}.ckpt"))
+                print(f"Save the best Score{PSNR:.4f}")
+                best_score=PSNR
             
             epoch_loss=epoch_loss/len(train_loader)
             train_loss_list.append(epoch_loss)
@@ -170,18 +205,18 @@ class VAE_Model(nn.Module):
             PSNR_list.append(PSNR.numpy())
             
             print(f"epoch:{i},train_losee{epoch_loss:.4f},val_loss:{val_loss:.4f},PSNR:{PSNR}")
-            
+            ewma_psnr=PSNR
             self.current_epoch += 1
             self.scheduler.step()
             self.teacher_forcing_ratio_update()
             self.kl_annealing.update()
             
         
-        
+        np.save(f"./Lab4/img/psnr_frame.npy", np.array(psnr_frame))
         np.save(f"./Lab4/img/train_losses.npy", np.array(train_loss_list))
         np.save(f"./Lab4/img/val_losses.npy", np.array(val_loss_list))
         np.save(f"./Lab4/img/PSNR.npy",np.array(PSNR_list))
-        
+        np.save(f"./Lab4/img/PSNR_frame.npy",np.array(psnr_frame))
         
         np.save(f"./Lab4/img/tfr.npy", np.array(tfr_list))
         np.save(f"./Lab4/img/kl.npy", np.array(kl_list)) 
@@ -194,50 +229,53 @@ class VAE_Model(nn.Module):
         val_loss=0
         #tqdm(val_loader, ncols=120) 賦值給pbar
         for (img, label) in (pbar := tqdm(val_loader, ncols=120)):
-            total_images += img.size(0)  # 累計每個批次的圖像數量
+            total_images += (img.size(0) * img.size(1))  # 累計每個批次的圖像數量
             img = img.to(self.args.device)
             label = label.to(self.args.device)
-            loss ,PSNR = self.val_one_step(img, label)
-            val_PSNR+=PSNR
-            val_loss+=loss
+            loss ,psnr,psnr_frame= self.val_one_step(img, label)
+            #val_PSNR+=PSNR
+            #val_loss+=loss
             self.tqdm_bar('val', pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0])
         
-        return val_loss/len(val_loader),val_PSNR/len(val_loader)
+        return loss,psnr,psnr_frame
     
     def training_one_step(self, img, label, adapt_TeacherForcing): #[batch,時間序列,channals,height,width] 
-        #Define initital value
-        KL=0
-        Reconstruction_loss=0
-        
         #permute 成 [時間序列,batch,channals,height,width]
         img=img.permute(1,0,2,3,4)
         label = label.permute(1,0,2,3,4)
-        out = img[0]
+        #Define initital value
+        KL=0
+        Reconstruction_loss=0
+        pred = img[0]
         
-        for i in range(1,self.train_vi_len-1): #處理dataset裡面的一個data 因為包含多個時間序列 (16)
-            if adapt_TeacherForcing: #用前一偵的結果
-                img_out = img[i-1]
-            else:
-                img_out = img[i-1] * self.tfr + out * (1 - self.tfr)
-     
-            img_out=self.frame_transformation(img_out) #imge_out [batch,c,h,w]
+        for i in range(1,self.train_vi_len): #處理dataset裡面的一個data 因為包含多個時間序列 (16)
+            
+           
+                
+            #transform image from RGB-domain to feature-domain
+            img_out=self.frame_transformation(img[i]) #imge_out [batch,c,h,w]
             label_out=self.label_transformation(label[i])
-            #pass encoder
-            z,mu,logvar = self.Gaussian_Predictor(img_out,label_out)
+
+            z,mu,logvar = self.Gaussian_Predictor(img_out,label_out) # 是用這一偵來產生 distribution
+            
+            
+            if adapt_TeacherForcing: #用前一偵的結果
+                img_last = img[i-1]
+            else:
+                img_last = pred
+            img_last_out=self.frame_transformation(img_last)
             #pass to decoder
-            param=self.Decoder_Fusion(img_out,label_out,z)
-            out = self.Generator(param)
+            param=self.Decoder_Fusion(img_last_out,label_out,z) #根據上一偵產生結果
+            pred = self.Generator(param)
             #calculate loss
-            Reconstruction_loss += self.mse_criterion(out, img[i])
+            Reconstruction_loss += self.mse_criterion(pred, img[i])
             KL += kl_criterion(mu, logvar, batch_size = self.batch_size)
             
         loss = Reconstruction_loss + self.kl_annealing.get_beta() * KL
         
         self.optim.zero_grad()
         loss.backward()
-        # Gradient clipping
-        #max_norm = 1.0  # You can adjust this value
-        #torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm)
+        #nn.utils.clip_grad_norm_(self.parameters(), 1.) #gradient clipping
         self.optimizer_step()
         
         return loss.detach()
@@ -251,9 +289,10 @@ class VAE_Model(nn.Module):
         img=img.permute(1,0,2,3,4)
         label = label.permute(1,0,2,3,4)
         psnr_frame=[]
+        pred=img[0]
         for i in range(1,self.val_vi_len): #處理dataset裡面的一個data 因為包含多個時間序列 (630)
     
-            img_out=self.frame_transformation(img[i]) #imge_out [batch,c,h,w]
+            img_out=self.frame_transformation(pred) #imge_out [batch,c,h,w]
             label_out=self.label_transformation(label[i])
             
             #pass encoder
@@ -261,20 +300,20 @@ class VAE_Model(nn.Module):
             z = torch.cuda.FloatTensor(1, self.args.N_dim, self.args.frame_H, self.args.frame_W).normal_()#從normal distribtion smaple一個出來
             param=self.Decoder_Fusion(img_out,label_out,z)
     
-            out = self.Generator(param)
+            pred = self.Generator(param)
             
             #calculate loss
-            Reconstruction_loss += self.mse_criterion(out, img[i])
+            Reconstruction_loss += self.mse_criterion(pred, img[i])
             #KL += kl_criterion(mu, logvar, batch_size = self.batch_size)
             
             #calculate PSNR
-            PSNR= Generate_PSNR(out,img[i])
+            PSNR= Generate_PSNR(pred,img[i])
             psnr_frame.append(PSNR.detach().cpu().numpy())
             PSNR_total+=PSNR
             
         loss=Reconstruction_loss
         psnr=PSNR_total/self.val_vi_len
-        return loss.cpu().detach(),psnr.cpu().detach()
+        return loss.cpu().detach(),psnr.cpu().detach(),psnr_frame
                 
     def make_gif(self, images_list, img_name):
         new_list = []
@@ -325,7 +364,7 @@ class VAE_Model(nn.Module):
         # TODO
         #tfr_sde:The epoch that teacher forcing ratio start to decay
         #tfr_d_step : Decay step that teacher forcing ratio adopted (0.1)
-        if self.current_epoch >= self.tfr_sde and self.tfr > 0:
+        if self.current_epoch >= self.tfr_sde:
             # start decay
             self.tfr-=self.tfr_d_step
         self.tfr=max(0,self.tfr)
@@ -360,9 +399,10 @@ class VAE_Model(nn.Module):
             self.current_epoch = checkpoint['last_epoch']
 
     def optimizer_step(self):
-        nn.utils.clip_grad_norm_(self.parameters(), 1.)
+        nn.utils.clip_grad_norm_(self.parameters(), 1.) #gradient clipping
         self.optim.step()
-
+        
+############ plotting ####################################
 def plot_loss(np1,np2,save_path=None): 
     data1 = np.load(np1)
     data2 = np.load(np2)
@@ -370,26 +410,27 @@ def plot_loss(np1,np2,save_path=None):
     
     plt.figure()
 
-    plt.plot(data1, label='train_loss')
-    plt.plot(data2, label='val_loss')
-    plt.title('loss curve')
-    
+    plt.plot(data1,marker='o' ,label='train_loss')
+    plt.plot(data2,marker='o' ,label='val_loss')
+    plt.title(f'loss curve')
+    #plt.yscale('log') 
     plt.xlabel("epochs")
     plt.ylabel("loss")
     plt.legend()
-    plt.tight_layout()
     if save_path:
         plt.savefig(save_path, format='jpg')  # Save as JPG with high quality
     plt.show()
     plt.close()
-def plot_beta(np1,save_path=None): #
+def plot_beta(np1,np2,save_path=None): #
     data1 = np.load(np1)
-
+    data2 = np.load(np2)
     
     plt.figure()
 
-    plt.plot(data1, label='Cyclic')
-    plt.title("KL_aneeling beta")
+    plt.plot(data1, label='Monotonic')
+    plt.plot(data2, label='Cyclic')
+    
+    plt.title("KL_aneeling beta Compare")
     
     plt.xlabel("epochs")
     plt.ylabel("beta")
@@ -397,6 +438,7 @@ def plot_beta(np1,save_path=None): #
     plt.tight_layout()
     if save_path:
         plt.savefig(save_path, format='jpg')  # Save as JPG with high quality
+        
 def plot_tfr(np1,save_path=None): #
     data1 = np.load(np1)
 
@@ -414,7 +456,45 @@ def plot_tfr(np1,save_path=None): #
         plt.savefig(save_path, format='jpg')  # Save as JPG with high quality
     plt.show()
     plt.close()
+def plot_PSNR_frame(np1,save_path=None): #
+    data1 = np.load(np1)
+
+    avg_psnr = np.mean(data1)
     
+    plt.figure()
+
+    plt.plot(data1,label=f"PSNR (Avg: {avg_psnr:.2f})")
+    plt.title("Per frame quality(PSNR)")
+    
+    plt.xlabel("frame")
+    plt.ylabel("PSNR")
+    plt.legend()
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, format='jpg')  # Save as JPG with high quality
+    plt.show()
+    plt.close()
+    
+    
+def plot_PSNR(np1,save_path=None): #
+    data1 = np.load(np1)
+    avg_psnr = np.mean(data1)
+    
+    plt.figure()
+
+    plt.plot(data1,label=f"PSNR (Avg: {avg_psnr:.2f})")
+    plt.title("PSNR")
+    
+    plt.xlabel("epoch")
+    plt.ylabel("PSNR")
+    plt.legend()
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, format='jpg')  # Save as JPG with high quality
+    plt.show()
+    plt.close()
+    
+
 def main(args):
     os.makedirs(args.save_root, exist_ok=True)
     model = VAE_Model(args).to(args.device)
@@ -437,9 +517,9 @@ if __name__ == '__main__':
     parser.add_argument('--test',          action='store_true')
     parser.add_argument('--store_visualization',      action='store_true', help="If you want to see the result while training")
     parser.add_argument('--DR',            type=str,  default='./Lab4/LAB4_Dataset/LAB4_Dataset', help="Your Dataset Path")
-    parser.add_argument('--save_root',     type=str, default='./Lab4/model'  ,help="The path to save your data")
+    parser.add_argument('--save_root',     type=str, default='./Lab4/model/'  ,help="The path to save your data")
     parser.add_argument('--num_workers',   type=int, default=4)
-    parser.add_argument('--num_epoch',     type=int, default=1,     help="number of total epoch")
+    parser.add_argument('--num_epoch',     type=int, default=30,     help="number of total epoch")
     parser.add_argument('--per_save',      type=int, default=3,      help="Save checkpoint every seted epoch")
     parser.add_argument('--partial',       type=float, default=1.0,  help="Part of the training dataset to be trained")
     parser.add_argument('--train_vi_len',  type=int, default=16,     help="Training video length")
@@ -455,18 +535,18 @@ if __name__ == '__main__':
     parser.add_argument('--D_out_dim',     type=int, default=192,    help="Dimension of the output in Decoder_Fusion")
     
     # Teacher Forcing strategy
-    parser.add_argument('--tfr',           type=float, default=1.0,  help="The initial teacher forcing ratio")
+    parser.add_argument('--tfr',           type=float, default=1,  help="The initial teacher forcing ratio")
     parser.add_argument('--tfr_sde',       type=int,   default=10,   help="The epoch that teacher forcing ratio start to decay")
     parser.add_argument('--tfr_d_step',    type=float, default=0.1,  help="Decay step that teacher forcing ratio adopted")
-    parser.add_argument('--ckpt_path',     type=str,    default='./Lab4/model/epoch=99.ckpt',help="The path of your checkpoints")   
-    
+    parser.add_argument('--ckpt_path',     type=str,    default=None,help="The path of your checkpoints")   
+    #'./Lab4/model/epoch=294.ckpt'
     # Training Strategy
     parser.add_argument('--fast_train',         action='store_true')
     parser.add_argument('--fast_partial',       type=float, default=0.4,    help="Use part of the training data to fasten the convergence")
     parser.add_argument('--fast_train_epoch',   type=int, default=5,        help="Number of epoch to use fast train mode")
     
     # Kl annealing stratedy arguments
-    parser.add_argument('--kl_anneal_type',     type=str, default='Cyclical',       help="")
+    parser.add_argument('--kl_anneal_type',     type=str, default='Monotonic',choices=['Cyclic', 'Monotonic',"None"],help="")
     parser.add_argument('--kl_anneal_cycle',    type=int, default=10,               help="")
     parser.add_argument('--kl_anneal_ratio',    type=float, default=1,              help="")
     
@@ -474,6 +554,19 @@ if __name__ == '__main__':
     
 
     args = parser.parse_args()
-    #main(args)
-    #plot_graph_single(np1='./Lab4/img/tfr.npy',label='tfr',title='tfr',topic='tfr',save_path='./Lab4/img/tfr.jpg')
-    plot_loss(np1='./Lab4/img/train_losses.npy',np2='./Lab4/img/val_losses.npy',save_path='./Lab4/img/loss_curve.jpg')
+    
+    kl_anneal = kl_annealing(args)
+    '''
+    # 遍歷 n_iter 從 1 到 30
+    for epoch in range(0, 30):
+        kl_anneal.current_epoch = epoch
+        kl_anneal.update()
+        print(f"Epoch {epoch}: Beta = {kl_anneal.get_beta()}")
+    '''
+    main(args)
+    
+    #plot_loss(np1='./Lab4/img/with SGD/train_losses.npy',np2='./Lab4/img/with SGD/val_losses.npy',save_path='./Lab4/img/with SGD/loss_curve_withSGD.jpg')
+    #plot_beta(np1='./Lab4/img/Monotonic_epoch=30/kl.npy',np2='./Lab4/img/Cyclic_epoch=30/kl.npy',save_path='./Lab4/img/beta.jpg')
+    #plot_tfr(np1='./Lab4/img/Monotonic_epoch=30/tfr.npy',save_path='./Lab4/img/tfr.jpg')
+    #plot_PSNR_frame(np1='./Lab4/img/WithoutKL/PSNR_frame.npy',save_path='./Lab4/img/WithoutKL/PSNR_frame_WithoutKL.jpg')
+    #plot_PSNR(np1='./Lab4/img/with SGD/PSNR.npy',save_path='./Lab4/img/with SGD/PSNR_withSGD.jpg')
