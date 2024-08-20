@@ -20,6 +20,7 @@ Lab4/img
 /Lab5/Results(5,5,consine)
 /Lab5/Results(5,5,linear)
 /Lab5/Results(10,10,linear)
+/Lab5/models/VQGAN/checkpoints
 
 /Lab6/file/model_weight
 /Lab6/file/model_weight_linear
