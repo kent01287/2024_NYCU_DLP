@@ -367,7 +367,7 @@ parser.add_argument('--batch-size', type=int, default=50,
 parser.add_argument('--num-workers', type=int,
                     help=('Number of processes to use for data loading. '
                           'Defaults to `min(8, num_cpus)`'))
-parser.add_argument('--device', type=str, default=None,
+parser.add_argument('--device', type=str, default="cuda:0",
                     help='Device to use. Like cuda, cuda:0 or cpu')
 parser.add_argument('--dims', type=int, default=2048,
                     choices=list(InceptionV3.BLOCK_INDEX_BY_DIM),
@@ -376,7 +376,7 @@ parser.add_argument('--dims', type=int, default=2048,
 parser.add_argument('--save-stats', action='store_true',
                     help=('Generate an npz archive from a directory of samples. '
                           'The first path is used as input and the second as output.'))
-parser.add_argument('--predicted-path', type=str, default="/home/wendy/Maskgit_CIFAR10cat/models/VQGAN/test_i")
+parser.add_argument('--predicted-path', type=str, default="../Results/test_results")
 
 parser.add_argument('--gtcsv-path', type=str, default="./test_gt.csv")
 

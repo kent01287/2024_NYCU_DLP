@@ -5,8 +5,23 @@ __pycache__
 Lab4/LAB4_Dataset
 Lab4/model
 Lab4/img
+
 /Lab5/lab5_dataset
 /config
-/faster-pytorch-fid
+/Lab5/transformer_checkpoints
+/Lab5/Results
 /Lab5/lab5_dataset.zip
+/Lab5/test_results
+/Lab5/imga
+/Lab5/mask_scheduling
+/Lab5/Results(10,10,square)
+/Lab5/Results(5,5,square)
+/Lab5/Results(10,10,consine)
+/Lab5/Results(5,5,consine)
+/Lab5/Results(5,5,linear)
+/Lab5/Results(10,10,linear)
+
+/Lab6/file/model_weight
+/Lab6/file/model_weight_linear
+/Lab6/file/iclevr
 

@@ -5,8 +5,8 @@
       image_channels: 3
       enc_channels: [128, 128, 128, 256, 256, 512]
       dec_channels: [128, 128, 256, 256, 512]
-      latent_dim: 256
-      img_resolution: 64
-      latent_resolution: 16
-      num_codebook_vectors: 1024
-      beta: 0.25
+      latent_dim: 256 #latent space channal數目
+      img_resolution: 64 #原本圖大小 64*64
+      latent_resolution: 16 #latent space 的大小16*16
+      num_codebook_vectors: 1024 # codebook vector總數
+      beta: 0.25 # balance the weight of reconstruction loss and KL divergence

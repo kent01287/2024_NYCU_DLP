@@ -4,7 +4,8 @@ from torchvision import transforms
 from torchvision.datasets.folder import default_loader as imgloader
 import os
 import torch.nn as nn
-
+import matplotlib.pyplot as plt
+import numpy as np
 class LoadTrainData(torchData):
     """Training Dataset Loader
 
@@ -89,8 +90,27 @@ class LoadMaskData(torchData):
     def __getitem__(self, index):
         path = self.folder[index]
         return self.transform(imgloader(path))
+def plot_loss(np1,np2,save_path=None): 
+    data1 = np.load(np1)
+    data2 = np.load(np2)
 
+    
+    plt.figure()
+
+    plt.plot(data1,label='train_loss')
+    plt.plot(data2,label='val_loss')
+    plt.title('loss curve')
+    #plt.yscale('log') 
+    plt.xlabel("epochs")
+    plt.ylabel("loss")
+    plt.legend()
+    if save_path:
+        plt.savefig(save_path, format='jpg')  # Save as JPG with high quality
+    plt.show()
+    plt.close()
+    
 if __name__ == '__main__': 
+    '''
     train_data=LoadTrainData(root='./Lab5/lab5_dataset/train')
     print(len(train_data)) #12000
     val_data=LoadTestData(root='./Lab5/lab5_dataset/val')
@@ -99,4 +119,9 @@ if __name__ == '__main__':
     print(len(mask_data))#747
     mask64_data=LoadTestData(root='./Lab5/lab5_dataset/mask64')
     print(len(mask64_data))#747
+    
+    img=train_data[0]
+    print(img.shape) #[3,64,64]
+    '''
+    plot_loss('./img/train_loss.npy','./img/val_loss.npy','./img/loss_curve.jpg')
     

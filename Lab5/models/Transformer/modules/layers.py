@@ -19,52 +19,44 @@ class MultiHeadAttention(nn.Module):
     
     def forward(self, x):
         ''' Hint: input x tensor shape is (batch_size, num_image_tokens, dim) '''
+        '''
+        1.Linear transformation for qkv vector
+        2.qkv dim transform to (B,n_h,n_t,d_p_h)
+        3.calculate the attention matrix
+        4.apply softmax (歸一化)
+        5.return to origin shape and do projection
+        '''
         batch_size, num_tokens, dim = x.shape
         
         # Linear transformation
-        q = self.query(x)  # (B, T, D)
-        k = self.key(x)    # (B, T, D)
-        v = self.value(x)  # (B, T, D)
-        
-        print("After linear transformations:")
-        print(f"q shape: {q.shape}")
-        print(f"k shape: {k.shape}")
-        print(f"v shape: {v.shape}")
-        
+        q = self.query(x)  # q shape: (batch_size, num_tokens, dim)
+        k = self.key(x)    # k shape: (batch_size, num_tokens, dim)
+        v = self.value(x)  # v shape: (batch_size, num_tokens, dim)
         # Reshape and transpose for multi-head attention
-        q = q.view(batch_size, num_tokens, self.num_heads, dim // self.num_heads).transpose(1, 2)  # (B, nh, T, dim_per_head)
-        k = k.view(batch_size, num_tokens, self.num_heads, dim // self.num_heads).transpose(1, 2)  # (B, nh, T, dim_per_head)
-        v = v.view(batch_size, num_tokens, self.num_heads, dim // self.num_heads).transpose(1, 2)  # (B, nh, T, dim_per_head)
-        
-        print("After reshaping and transposing for multi-head attention:")
-        print(f"q shape: {q.shape}")
-        print(f"k shape: {k.shape}")
-        print(f"v shape: {v.shape}")
+        # Reshape q, k, v to split dim into multiple heads and then transpose to get shape
+        # (batch_size, num_heads, num_tokens, dim_per_head)
+        q = q.view(batch_size, num_tokens, self.num_heads, dim // self.num_heads).permute(0, 2, 1, 3)
+        k = k.view(batch_size, num_tokens, self.num_heads, dim // self.num_heads).permute(0, 2, 1, 3)
+        v = v.view(batch_size, num_tokens, self.num_heads, dim // self.num_heads).permute(0, 2, 1, 3)
         
         # Compute attention matrix
-        att = q @ k.transpose(2, 3)  # (B, nh, T, T)
-        att = att / np.sqrt(k.size(-1))  # Scaling
+        # Multiply q with transposed k and then scale by the square root of the key dimension size
+        att = q @ k.permute(0, 1, 3, 2)  # att shape: (batch_size, num_heads, num_tokens, num_tokens)
+        #防止attention值太大
+        att = att / np.sqrt(k.size(-1))  # Scaling to prevent extremely large values in softmax
         
-        print("After computing attention matrix and scaling:")
-        print(f"att shape: {att.shape}")
-        
-        att = nn.functional.softmax(torch.tensor(att), dim=-1)  # Convert to tensor and apply softmax
+        # Convert att to a tensor and apply softmax along the last dimension to get attention weights
+        att = nn.functional.softmax(torch.tensor(att), dim=-1)
         att = self.dropout(att)
         
-        print("After applying softmax and dropout:")
-        print(f"att shape: {att.shape}")
+        # Multiply the attention weights with the value vectors to get the attention output
+        y = att @ v  # y shape: (batch_size, num_heads, num_tokens, dim_per_head)
         
-        y = att @ v  # (B, nh, T, dim_per_head)
+        # Transpose y back to its original shape and combine the head outputs into a single dimension
+        y = y.transpose(1, 2).contiguous().view(batch_size, num_tokens, dim) #確保y是連續的
         
-        print("After computing output of attention:")
-        print(f"y shape: {y.shape}")
-        
-        y = y.transpose(1, 2).contiguous().view(batch_size, num_tokens, dim)  # Re-assemble all head outputs side by side
-        print("After reassembling head outputs and projecting:")
-        print(f"y shape: {y.shape}")
-        
+        # Project the combined output to the original dimension using a linear layer
         return self.proj(y)
-
 class MLP(nn.Sequential):
     def __init__(self, dim=768, hidden_dim=3072, drop_rate=0.1):
         super(MLP, self).__init__(

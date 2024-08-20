@@ -6,12 +6,12 @@ from .layers import ResidualBlock, NonLocalBlock, DownSampleBlock, GroupNorm, Sw
 class Encoder(nn.Module):
     def __init__(self, configs):
         super(Encoder, self).__init__()
-        channels = configs['enc_channels']
+        channels = configs['enc_channels'] #[128, 128, 128, 256, 256, 512]
         num_res_blocks = 2
-        resolution = configs['img_resolution']
-        attn_resolutions = [configs['latent_resolution']]
+        resolution = configs['img_resolution'] #64
+        attn_resolutions = [configs['latent_resolution']]#16
 
-        layers = [nn.Conv2d(configs['image_channels'], channels[0], 3, 1, 1)]
+        layers = [nn.Conv2d(configs['image_channels'], channels[0], 3, 1, 1)]#3
 
         for i in range(len(channels)-1):
             in_channels = channels[i]
@@ -90,7 +90,7 @@ class Codebook(nn.Module):
         self.embedding.weight.data.uniform_(-1.0 / self.num_codebook_vectors, 1.0 / self.num_codebook_vectors)
         #1024*256
     def forward(self, z):
-        z = z.permute(0, 2, 3, 1).contiguous()
+        z = z.permute(0, 2, 3, 1).contiguous() #(B, H, W, C)
         z_flattened = z.view(-1, self.latent_dim)
         #b h w 256  #b*h*w,256
 
@@ -98,7 +98,7 @@ class Codebook(nn.Module):
         # d = torch.sum(z_flattened ** 2, dim=1, keepdim=True) + \
         #     torch.sum(self.embedding.weight ** 2, dim=1) - 2 * \
         #     torch.einsum('bd,dn->bn', z_flattened, rearrange(self.embedding.weight, 'n d -> d n'))
-                
+        # 算距離
         d = torch.sum(z_flattened ** 2, dim=1, keepdim=True) + \
             torch.sum(self.embedding.weight ** 2, dim=1) - 2 * \
             torch.matmul(z_flattened, self.embedding.weight.t())
@@ -113,8 +113,8 @@ class Codebook(nn.Module):
 
         z_q = z_q.permute(0, 3, 1, 2)
         #b,c,h,w
-        return z_q, min_encoding_indices, loss
-
+        return z_q, min_encoding_indices, loss 
+        
 
 class Discriminator(nn.Module):
     """

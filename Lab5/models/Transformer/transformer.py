@@ -2,7 +2,6 @@ import torch.nn as nn
 import torch
 from .modules import Encoder, TokenPredictor
 
-
 def weights_init(m):
     classname = m.__class__.__name__
     if "Linear" in classname or "Embedding" == classname:

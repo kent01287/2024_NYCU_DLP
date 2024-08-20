@@ -20,6 +20,9 @@ MD5_MAP = {
     "vgg_lpips": "d507d7349b931f0638a25a48a722f98a"
 }
 
+'''
+實作 LPIPS (Learned Perceptual Image Patch Similarity) 
+'''
 
 def download(url, local_path, chunk_size=1024):
     os.makedirs(os.path.split(local_path)[0], exist_ok=True)
@@ -84,7 +87,7 @@ class LPIPS(nn.Module):
 
         return sum([spatial_average(self.lins[i].model(diffs[i])) for i in range(len(self.channels))])
 
-
+#圖像preporcess的層 標準化
 class ScalingLayer(nn.Module):
     def __init__(self):
         super(ScalingLayer, self).__init__()
@@ -103,7 +106,7 @@ class NetLinLayer(nn.Module):
             nn.Conv2d(in_channels, out_channels, 1, 1, 0, bias=False)
         )
 
-
+#預訓練的 VGG16 模型中提取前 30 層的特徵，並將其分成 5 個片段，用於提取不同層次的特徵。
 class VGG16(nn.Module):
     def __init__(self):
         super(VGG16, self).__init__()
@@ -132,7 +135,7 @@ class VGG16(nn.Module):
         vgg_outputs = namedtuple("VGGOutputs", ['relu1_2', 'relu2_2', 'relu3_3', 'relu4_3', 'relu5_3'])
         return vgg_outputs(h_relu1, h_relu2, h_relu3, h_relu4, h_relu5)
 
-
+#使其成為單位向量
 def norm_tensor(x):
     """
     Normalize images by their length to make them unit vector?
@@ -142,7 +145,7 @@ def norm_tensor(x):
     norm_factor = torch.sqrt(torch.sum(x**2, dim=1, keepdim=True))
     return x / (norm_factor + 1e-10)
 
-
+#對 H W 取平均
 def spatial_average(x):
     """
      imgs have: batch_size x channels x width x height --> average over width and height channel
@@ -151,7 +154,7 @@ def spatial_average(x):
     """
     return x.mean([2,3], keepdim=True)
 
-
+#通過LPIPS模型來確認感知差異
 if __name__ == '__main__':
     real = torch.randn(10, 3, 256, 256)
     fake = torch.randn(10, 3, 256, 256)
