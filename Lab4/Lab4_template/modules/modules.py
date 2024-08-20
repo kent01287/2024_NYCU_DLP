@@ -12,22 +12,6 @@ __all__ = [
     "Label_Encoder"
 ] 
 '''
-在一些 VAE 实现中，可能会使用附加模块来增强模型的功能。例如：
-
-Gaussian Predictor（高斯预测器）：
-
-在你提供的代码中，Gaussian_Predictor 是用于预测潜在空间分布的一个模块，
-它接收编码器生成的特征，并输出均值和对数方差。这是为了提供潜在变量 
-𝑧
-z 的分布参数。
-Decoder Fusion（解码器融合）：
-
-Decoder_Fusion 是一个解码器模块，它结合了图像、标签和潜在变量的特征进行最终的图像生成。
-这样的设计允许模型在生成过程中利用额外的信息，如骨架数据。
-Generator（生成器）：
-
-Generator 是一个图像生成模块，通常用于将特征图转化为最终的图像。它在你的实现中被用来生成基于潜在变量 
-z 的图像。
 '''
 
 class Generator(nn.Sequential):
@@ -94,8 +78,8 @@ class Gaussian_Predictor(nn.Sequential):
             nn.Conv2d(out_chans, out_chans*2, kernel_size=1)
         )
     #VAE參數化是分布是不可微分的   
-    #重參數化的技巧是假設 prior distribition 是 Normal Gaussian ~ 
-    #，因此可以將 latent space 以 
+    #重參數化的技巧是假設 prior distribition 是 Normal distrbution
+    #，因此可以將 latent space 以 z=mu+std*eplision表示
     #表示，則使得分布與網路參數分布無關，使其可以計算 Gradient。
     def reparameterize(self, mu, logvar): #直接從後驗分佈採z比較困難 所以使用reparameterize 
         #透過encoder 得到 mu 和 log var 使用 reparameterize 得到隨機變量z (要是normal distribution)

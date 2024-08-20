@@ -16,7 +16,7 @@ from math import log10
 from Trainer import VAE_Model
 import glob
 import pandas as pd
-
+import random
 
 TA_ = """
  ██████╗ ██████╗ ███╗   ██╗ ██████╗ ██████╗  █████╗ ████████╗██╗   ██╗██╗      █████╗ ████████╗██╗ ██████╗ ███╗   ██╗███████╗    ██╗██╗██╗
@@ -37,7 +37,13 @@ from glob import glob
 from torch.utils.data import Dataset as torchData
 from torchvision.datasets.folder import default_loader as imgloader
 
-
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)  # 如果你有多张 GPU
 
 class Dataset_Dance(torchData):
     def __init__(self, root, transform, mode='test', video_len=7, partial=1.0):
@@ -45,7 +51,7 @@ class Dataset_Dance(torchData):
         self.img_folder = []
         self.label_folder = []
         
-        data_num = len(glob('./Lab4/LAB4_Dataset/LAB4_Dataset/test/test_img'))
+        data_num = len(glob('./LAB4_Dataset/LAB4_Dataset/test/test_img'))
         #print(data_num) #5
         for i in range(5):
             self.img_folder.append(sorted(glob(os.path.join(root , f'test/test_img/{i}/*')), key=get_key))
@@ -105,8 +111,6 @@ class Test_model(VAE_Model):
             PSNR_total+=PSNR
             pred_seq_list.append(pred_seq)
             print(idx)
-        #PSNR=PSNR_total/len(val_loader)
-        #print(f"Avg PSNR {PSNR:.4f}")
         
         # submission.csv is the file you should submit to kaggle
         pred_to_int = (np.rint(torch.cat(pred_seq_list).numpy()*255)).astype(int)
@@ -214,8 +218,8 @@ if __name__ == '__main__':
     parser.add_argument('--no_sanity',     action='store_true')
     parser.add_argument('--test',          action='store_true')
     parser.add_argument('--make_gif',      action='store_true')
-    parser.add_argument('--DR',            type=str, default='./Lab4/LAB4_Dataset/LAB4_Dataset',  help="Your Dataset Path")
-    parser.add_argument('--save_root',     type=str, default='./Lab4/img/epoch=61',  help="The path to save your data")
+    parser.add_argument('--DR',            type=str, default='./LAB4_Dataset/LAB4_Dataset',  help="Your Dataset Path")
+    parser.add_argument('--save_root',     type=str, default='./img/epoch=652',  help="The path to save your data")
     parser.add_argument('--num_workers',   type=int, default=4)
     parser.add_argument('--num_epoch',     type=int, default=70,     help="number of total epoch")
     parser.add_argument('--per_save',      type=int, default=3,      help="Save checkpoint every seted epoch")
@@ -236,7 +240,7 @@ if __name__ == '__main__':
     parser.add_argument('--tfr',           type=float, default=1.0,  help="The initial teacher forcing ratio")
     parser.add_argument('--tfr_sde',       type=int,   default=10,   help="The epoch that teacher forcing ratio start to decay")
     parser.add_argument('--tfr_d_step',    type=float, default=0.1,  help="Decay step that teacher forcing ratio adopted")
-    parser.add_argument('--ckpt_path',     type=str,    default="./Lab4/model/epoch===61.ckpt",help="The path of your checkpoints")   
+    parser.add_argument('--ckpt_path',     type=str,    default="./model/epoch==652.ckpt",help="The path of your checkpoints")   
     
     # Training Strategy
     parser.add_argument('--fast_train',         action='store_true')
@@ -250,7 +254,7 @@ if __name__ == '__main__':
     
 
     
-
+    set_seed(42)
     args = parser.parse_args()
     
     main(args)
