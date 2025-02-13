@@ -6,4 +6,4 @@
 * ## Lab5: MaskGIT for Image Inpainting
 * ## Lab6: Diffusion Models 
 
-* ## FinalProject: Zero-shot Denoise method modified 
+* ## FinalProject: Low cost smartphone denoise model
